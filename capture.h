@@ -145,7 +145,6 @@ struct Capture {
   Capture(const Capture& o) = delete;
   Capture(Capture&& o): path(o.path), fd(std::exchange(o.fd, 0)), fmt(o.fmt) {}
   ~Capture() { if(fd > 0) { stop(); close(fd); } }
-  Capture() {}
 
   uint32_t get_width() const { return fmt.fmt.pix.width; }
   uint32_t get_height() const { return fmt.fmt.pix.height; }
