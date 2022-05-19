@@ -5,9 +5,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(harness)
 
-find_package(SDL2 REQUIRED)
-
 add_subdirectory(external/fmt)
+include(cmake/AddMultiTargetComponent.cmake)
 
-add_executable(harness main.cpp)
-target_link_libraries(harness PUBLIC fmt SDL2)
+add_subdirectory_for_toolchain(host "x86_64")
+add_subdirectory_for_toolchain(pi "rpi")
+
+# trigger_toolchain_build("rpi" "x86_64")

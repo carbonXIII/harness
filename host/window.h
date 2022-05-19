@@ -80,6 +80,11 @@ struct Window {
       f(e);
   }
 
+  bool is_focused() {
+    auto state = SDL_GetWindowFlags(win);
+    return state & SDL_WINDOW_MOUSE_FOCUS;
+  }
+
   ~Window() {
     if(win && render) {
       SDL_DestroyWindow(win);
