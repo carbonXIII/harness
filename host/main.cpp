@@ -1,6 +1,8 @@
 #include "window.h"
 #include "capture.h"
 #include "keys.h"
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL_mouse.h>
 #include <common/serial.h>
 
 #include <asio.hpp>
@@ -16,7 +18,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  KeyState keys;
+  keys::KeyState keys;
   asio::io_service service;
   serial_iostream stream(service, argv[2]);
   stream.set_option(asio::serial_port_base::baud_rate(115200));
@@ -68,35 +70,28 @@ int main(int argc, char** argv) {
       win.render_present();
     }
 
-    auto last_ctrl_pressed = ctrl_pressed;
-    auto last_mouse_pressed = mouse_pressed;
-
     win.process_events([&](const SDL_Event& e) {
       if(e.type == SDL_QUIT) {
         running = false;
-      } else if(e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
-        if(e.key.keysym.scancode == SDL_SCANCODE_LCTRL || e.key.keysym.scancode == SDL_SCANCODE_RCTRL)
-          ctrl_pressed[e.key.keysym.scancode == SDL_SCANCODE_RCTRL] = e.type == SDL_KEYDOWN;
-      } else if(e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
-        if(e.button.button == SDL_BUTTON_LEFT)
-          mouse_pressed = e.type == SDL_MOUSEBUTTONDOWN;
+      }
+
+      if(keys::OnPress(e, keys::kbd_button{SDL_SCANCODE_LCTRL}, keys::kbd_button{SDL_SCANCODE_RCTRL})
+         && win.is_grabbed()) {
+        fmt::print("mouse unlock\n");
+        keys.reset(stream);
+        win.set_grab(false);
+      }
+
+      if(keys::OnPress(e, keys::mouse_button{SDL_BUTTON_LEFT})
+         && !win.is_grabbed()) {
+        fmt::print("mouse lock\n");
+        keys.reset(stream);
+        win.set_grab(true);
       }
 
       if(win.is_grabbed())
         keys.consume_event(e);
     });
-
-    if(win.is_grabbed() && last_ctrl_pressed != 3 && ctrl_pressed == 3) {
-      fmt::print("mouse unlock\n");
-      keys.reset(stream);
-      win.set_grab(false);
-    }
-
-    if(!win.is_grabbed() && mouse_pressed == 1 && last_mouse_pressed != 1) {
-      fmt::print("mouse lock\n");
-      keys.reset(stream);
-      win.set_grab(true);
-    }
 
     keys.dump(stream);
   }
