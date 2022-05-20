@@ -82,17 +82,19 @@ int main(int argc, char** argv) {
           mouse_pressed = e.type == SDL_MOUSEBUTTONDOWN;
       }
 
-
-      keys.consume_event(e, win.is_grabbed());
+      if(win.is_grabbed())
+        keys.consume_event(e);
     });
 
-    if(last_ctrl_pressed != 3 && ctrl_pressed == 3) {
+    if(win.is_grabbed() && last_ctrl_pressed != 3 && ctrl_pressed == 3) {
       fmt::print("mouse unlock\n");
+      keys.reset(stream);
       win.set_grab(false);
     }
 
-    if(mouse_pressed == 1 && last_mouse_pressed != 1) {
+    if(!win.is_grabbed() && mouse_pressed == 1 && last_mouse_pressed != 1) {
       fmt::print("mouse lock\n");
+      keys.reset(stream);
       win.set_grab(true);
     }
 

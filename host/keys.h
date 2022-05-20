@@ -88,10 +88,13 @@ struct KeyState {
     have_mouse_motion = 1;
   }
 
-  auto& reset() {
+  KeyState& reset(auto& stream) {
     keys.clear();
-    mod = 0;
-    mouse = MouseState();
+    mod = {};
+    mouse = {};
+
+    dump(stream, true);
+
     return *this;
   }
 
@@ -143,7 +146,7 @@ struct KeyState {
     return have_mouse_button || (have_mouse_motion && my_clock::now() - last_mouse > frame_time);
   }
 
-  void consume_event(const SDL_Event& event, bool is_grabbed) {
+  void consume_event(const SDL_Event& event) {
     if(event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
       consume(event.key.keysym.scancode, event.type == SDL_KEYDOWN);
     }
@@ -155,25 +158,23 @@ struct KeyState {
     //   std::cerr << "here\n";
     // }
 
-    else if(is_grabbed) {
-      if(event.type == SDL_MOUSEMOTION) {
-        consume_mouse_motion(event.motion.xrel, event.motion.yrel);
-      }
+    if(event.type == SDL_MOUSEMOTION) {
+      consume_mouse_motion(event.motion.xrel, event.motion.yrel);
+    }
 
-      else if(event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-        consume_mouse_button(event.button.button, event.type == SDL_MOUSEBUTTONDOWN);
-      }
+    else if(event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+      consume_mouse_button(event.button.button, event.type == SDL_MOUSEBUTTONDOWN);
+    }
 
-      else if(event.type == SDL_MOUSEWHEEL) {
-        consume_mouse_wheel(event.wheel.x, event.wheel.y);
-      }
+    else if(event.type == SDL_MOUSEWHEEL) {
+      consume_mouse_wheel(event.wheel.x, event.wheel.y);
     }
   }
 
-  void dump(auto& stream) {
+  void dump(auto& stream, bool force = false) {
     int wrote = 0;
 
-    if(keyboard_ready()) {
+    if(force || keyboard_ready()) {
       auto buf = get_keyboard_buffer();
 
       {
@@ -187,7 +188,7 @@ struct KeyState {
       wrote++;
     }
 
-    if(mouse_ready()) {
+    if(force || mouse_ready()) {
       auto buf = get_mouse_buffer();
 
       {
