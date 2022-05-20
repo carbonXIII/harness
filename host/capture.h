@@ -118,24 +118,35 @@ struct Capture {
     do_ioctl(fd, VIDIOC_QBUF, buf);
   }
 
-  template <typename R>
-  R read_frame(auto&& f) {
+  struct BufferHandle {
+    Capture* parent;
+    int index;
+    std::span<std::byte> data;
+
+    BufferHandle(Capture* parent, int index, std::span<std::byte> data)
+      : parent(parent), index(index), data(data) {}
+    BufferHandle(const BufferHandle& o) = delete;
+    BufferHandle(BufferHandle&& o)
+      : parent(o.parent), index(std::exchange(o.index, -1)), data(o.data) {}
+
+    ~BufferHandle() {
+      if(index >= 0) parent->queue_buffer(index);
+    }
+  };
+
+  std::optional<BufferHandle> read_frame() {
     v4l2_buffer buf = {
       .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
       .memory = V4L2_MEMORY_MMAP,
     };
 
     if(do_ioctl(fd, VIDIOC_DQBUF, buf))
-      return R{};
+      return std::nullopt;
 
     if(buf.index < 0 || buf.index >= buffers.size())
       throw std::runtime_error(fmt::format("Dequeue'd buffer index out of range, {} not in [0, {})", buf.index, buffers.size()));
 
-    auto ret = f(buffers[buf.index].subspan(0, buf.bytesused));
-
-    do_ioctl(fd, VIDIOC_QBUF, buf);
-
-    return ret;
+    return BufferHandle(this, buf.index, buffers[buf.index].subspan(0, buf.bytesused));
   }
 
   void stop() { do_ioctl(fd, VIDIOC_STREAMOFF, V4L2_BUF_TYPE_VIDEO_CAPTURE); }

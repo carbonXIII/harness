@@ -1,4 +1,12 @@
-add_executable(pi_server main.cpp)
+find_package(Threads REQUIRED)
 
-target_include_directories(pi_server PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(pi_server PRIVATE fmt)
+add_executable(pi_server main.cpp)
+target_include_directories(pi_server PRIVATE
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/external/asio/asio/include
+)
+target_link_libraries(pi_server PRIVATE fmt Threads::Threads)
+
+add_executable(echo echo.cpp)
+target_include_directories(echo PRIVATE ${CMAKE_SOURCE_DIR}/external/asio/asio/include)
+target_link_libraries(echo PRIVATE fmt Threads::Threads)

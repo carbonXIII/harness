@@ -2,6 +2,7 @@
 
 #include <SDL2/SDL.h>
 #include <fmt/core.h>
+#include <asio.hpp>
 
 #include <bitset>
 #include <set>
@@ -40,10 +41,10 @@ struct KeyState {
       : dx(0), dy(0), sx(0), sy(0), buttons(0) {}
   } mouse;
 
-  char have_keyboard, have_mouse;
+  char have_keyboard, have_mouse_button, have_mouse_motion;
   my_clock::time_point last_mouse;
 
-  KeyState(): mod(0), have_keyboard(0), have_mouse(0) {}
+  KeyState(): mod(0), have_keyboard(0), have_mouse_button(0), have_mouse_motion(0) {}
 
   void consume(SDL_Scancode code, bool press) {
     switch(code) {
@@ -67,7 +68,7 @@ struct KeyState {
   void consume_mouse_motion(int dx, int dy) {
     mouse.dx += dx;
     mouse.dy += dy;
-    have_mouse = 1;
+    have_mouse_button = 1;
   }
 
   void consume_mouse_button(int code, bool press) {
@@ -78,13 +79,13 @@ struct KeyState {
     case SDL_BUTTON_MIDDLE: mouse.buttons[MMIDDLE] = press; break;
     }
 
-    have_mouse = 1;
+    have_mouse_motion = 1;
   }
 
   void consume_mouse_wheel(int sx, int sy) {
     mouse.sx += sx;
     mouse.sy += sy;
-    have_mouse = 1;
+    have_mouse_motion = 1;
   }
 
   auto& reset() {
@@ -128,7 +129,7 @@ struct KeyState {
 
     mouse.dx = mouse.dy = mouse.sx = mouse.sy = 0;
 
-    have_mouse = 0;
+    have_mouse_button = have_mouse_motion = 0;
     last_mouse = my_clock::now();
 
     return ret;
@@ -139,10 +140,10 @@ struct KeyState {
   }
 
   bool mouse_ready() {
-    return have_mouse && my_clock::now() - last_mouse > frame_time;
+    return have_mouse_button || (have_mouse_motion && my_clock::now() - last_mouse > frame_time);
   }
 
-  void consume_event(const SDL_Event& event, bool is_focused) {
+  void consume_event(const SDL_Event& event, bool is_grabbed) {
     if(event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
       consume(event.key.keysym.scancode, event.type == SDL_KEYDOWN);
     }
@@ -154,7 +155,7 @@ struct KeyState {
     //   std::cerr << "here\n";
     // }
 
-    else if(is_focused) {
+    else if(is_grabbed) {
       if(event.type == SDL_MOUSEMOTION) {
         consume_mouse_motion(event.motion.xrel, event.motion.yrel);
       }
@@ -170,6 +171,8 @@ struct KeyState {
   }
 
   void dump(auto& stream) {
+    int wrote = 0;
+
     if(keyboard_ready()) {
       auto buf = get_keyboard_buffer();
 
@@ -181,7 +184,7 @@ struct KeyState {
 
       write_trivial<int>(stream, CMD_KEYBOARD);
       write_trivial(stream, buf);
-      stream.flush();
+      wrote++;
     }
 
     if(mouse_ready()) {
@@ -195,7 +198,10 @@ struct KeyState {
 
       write_trivial<int>(stream, CMD_MOUSE);
       write_trivial(stream, buf);
-      stream.flush();
+      wrote++;
     }
+
+    if(wrote)
+      stream.flush();
   }
 };

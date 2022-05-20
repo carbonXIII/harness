@@ -1,6 +1,9 @@
+#include <SDL2/SDL_mouse.h>
+#include <SDL2/SDL_render.h>
 #include <span>
 #include <utility>
 #include <stdexcept>
+#include <optional>
 
 #include <SDL2/SDL.h>
 
@@ -9,6 +12,10 @@ struct Window {
     Texture(const Texture& o) = delete;
     Texture(Texture&& o): texture(std::exchange(o.texture, nullptr)) {}
     ~Texture() { if(texture) SDL_DestroyTexture(texture); }
+
+    void set_scale_mode(SDL_ScaleMode mode) {
+      SDL_SetTextureScaleMode(texture, mode);
+    }
 
   protected:
     friend struct Window;
@@ -67,9 +74,13 @@ struct Window {
     return Texture(ret, width, height);
   }
 
-  void render_copy(const Texture& texture) {
+  void render_clear() {
+    SDL_RenderClear(render);
+  }
+
+  void render_copy(const Texture& texture, std::optional<SDL_Rect> dst = std::nullopt) {
     // TODO: src, dst rects
-    SDL_RenderCopy(render, texture.texture, nullptr, nullptr);
+    SDL_RenderCopy(render, texture.texture, nullptr, dst ? &dst.value() : nullptr);
   }
 
   void render_present() { SDL_RenderPresent(render); }
@@ -80,9 +91,20 @@ struct Window {
       f(e);
   }
 
-  bool is_focused() {
+  bool is_grabbed() {
     auto state = SDL_GetWindowFlags(win);
-    return state & SDL_WINDOW_MOUSE_FOCUS;
+    return state & SDL_WINDOW_INPUT_GRABBED;
+  }
+
+  void set_grab(bool grab) {
+    SDL_SetWindowGrab(win, grab ? SDL_TRUE : SDL_FALSE);
+    SDL_SetRelativeMouseMode(grab ? SDL_TRUE : SDL_FALSE);
+  }
+
+  std::pair<int,int> get_dims() {
+    int w, h;
+    SDL_GetWindowSize(win, &w, &h);
+    return {w, h};
   }
 
   ~Window() {

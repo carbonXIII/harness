@@ -1,7 +1,9 @@
+#include <asio.hpp>
 #include <fstream>
 #include <fmt/core.h>
 
 #include <common/msg.h>
+#include <common/serial.h>
 
 void write_keyboard(const char* keyboard_file, keyboard_t& buf) {
   static std::ofstream out(keyboard_file, std::ios::out
@@ -32,20 +34,22 @@ void write_mouse(const char* mouse_file, mouse_t& buf) {
 void run_server(const char* serial_file,
                 const char* keyboard_file,
                 const char* mouse_file) {
-  std::ifstream fin(serial_file);
+  asio::io_service service;
+  serial_iostream stream(service, serial_file);
+  stream.set_option(asio::serial_port_base::baud_rate(115200));
 
-  while(fin.good()) {
-    int cmd = read_trivial<int>(fin);
+  while(stream.is_open()) {
+    int cmd = read_trivial<int>(stream);
 
     switch(cmd) {
       case CMD_KEYBOARD: {
-        auto buf = read_trivial<keyboard_t>(fin);
+        auto buf = read_trivial<keyboard_t>(stream);
         write_keyboard(keyboard_file, buf);
         break;
       }
 
       case CMD_MOUSE: {
-        auto buf = read_trivial<mouse_t>(fin);
+        auto buf = read_trivial<mouse_t>(stream);
         write_mouse(mouse_file, buf);
         break;
       }
