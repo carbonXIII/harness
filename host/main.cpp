@@ -23,13 +23,15 @@ int main(int argc, char** argv) {
   serial_iostream stream(service, argv[2]);
   stream.set_option(asio::serial_port_base::baud_rate(115200));
 
-  Capture cap(argv[1]);
-  cap.start(4);
+  std::optional<Capture> cap;
+  cap.emplace(argv[1]);
+  cap->start(4);
 
-  int w = cap.get_width(), h = cap.get_height();
+  int w = cap->get_width(), h = cap->get_height();
   fmt::print("{}x{}\n", w, h);
 
   Window win(w, h);
+  win.set_title("Harness");
 
   auto texture = win.create_texture(SDL_PIXELFORMAT_NV12, w, h);
   texture.set_scale_mode(SDL_ScaleModeBest);
@@ -40,18 +42,34 @@ int main(int argc, char** argv) {
   bool running = true;
   std::jthread cap_thread([&]{
     while(running) {
-      if(!have_frame.load(std::memory_order_acquire)) {
-        auto maybe_frame = cap.read_frame();
-        if(maybe_frame) {
-          frame.emplace(std::move(*maybe_frame));
-          have_frame.store(1, std::memory_order_release);
+      try {
+        if(!cap) {
+          cap.emplace(argv[1]);
+          cap->start(4);
         }
+
+        while(running) {
+          if(!have_frame.load(std::memory_order_acquire)) {
+            auto maybe_frame = cap->read_frame();
+            if(maybe_frame) {
+              frame.emplace(std::move(*maybe_frame));
+              have_frame.store(1, std::memory_order_release);
+            }
+          }
+        }
+      } catch(const std::system_error& e) {
+        if(e.code() != std::error_code(ENODEV, std::system_category()))
+          throw;
+
+        fmt::print("Capture card connection lost, attempting reconnect.\n");
+
+        frame.reset();
+        cap.reset();
+        have_frame.store(0);
       }
     }
   });
 
-  std::bitset<2> ctrl_pressed {};
-  bool mouse_pressed {};
   while(running) {
     if(have_frame.load(std::memory_order_acquire)) {
       {
@@ -82,15 +100,15 @@ int main(int argc, char** argv) {
         win.set_grab(false);
       }
 
+      if(win.is_grabbed())
+        keys.consume_event(e);
+
       if(keys::OnPress(e, keys::mouse_button{SDL_BUTTON_LEFT})
          && !win.is_grabbed()) {
         fmt::print("mouse lock\n");
         keys.reset(stream);
         win.set_grab(true);
       }
-
-      if(win.is_grabbed())
-        keys.consume_event(e);
     });
 
     keys.dump(stream);

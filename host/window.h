@@ -1,5 +1,6 @@
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_video.h>
 #include <span>
 #include <utility>
 #include <stdexcept>
@@ -99,6 +100,10 @@ struct Window {
   void set_grab(bool grab) {
     SDL_SetWindowGrab(win, grab ? SDL_TRUE : SDL_FALSE);
     SDL_SetRelativeMouseMode(grab ? SDL_TRUE : SDL_FALSE);
+  }
+
+  void set_title(const std::string& s) {
+    SDL_SetWindowTitle(win, s.c_str());
   }
 
   std::pair<int,int> get_dims() {
