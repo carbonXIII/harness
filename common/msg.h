@@ -1,6 +1,8 @@
 // Some constants for communication
+#pragma once
 
 #include <array>
+#include <cstdint>
 
 enum : int{
   CMD_KEYBOARD,

@@ -1,7 +1,8 @@
+#pragma once
+
 #include <common/msg.h>
 
 #include <SDL2/SDL.h>
-#include <fmt/core.h>
 #include <asio.hpp>
 
 #include <bitset>
@@ -57,22 +58,22 @@ namespace keys {
       MMIDDLE,
     };
 
-    std::bitset<8> mod;
+    std::bitset<8> mod {};
     std::set<SDL_Scancode> keys;
 
     struct MouseState {
-      int dx, dy;
-      int sx, sy;
-      std::bitset<8> buttons;
-
-      MouseState()
-        : dx(0), dy(0), sx(0), sy(0), buttons(0) {}
+      int dx = 0;
+      int dy = 0;
+      int sx = 0;
+      int sy = 0;
+      std::bitset<8> buttons {};
     } mouse;
 
-    char have_keyboard, have_mouse_button, have_mouse_motion;
-    my_clock::time_point last_mouse;
+    bool have_keyboard = 0;
+    bool have_mouse_button = 0;
+    bool have_mouse_motion = 0;
 
-    KeyState(): mod(0), have_keyboard(0), have_mouse_button(0), have_mouse_motion(0) {}
+    my_clock::time_point last_mouse;
 
     void consume(SDL_Scancode code, bool press) {
       switch(code) {
@@ -90,13 +91,13 @@ namespace keys {
           else keys.erase(code);
       }
 
-      have_keyboard = 1;
+      have_keyboard = true;
     }
 
     void consume_mouse_motion(int dx, int dy) {
       mouse.dx += dx;
       mouse.dy += dy;
-      have_mouse_button = 1;
+      have_mouse_button = true;
     }
 
     void consume_mouse_button(int code, bool press) {
@@ -107,13 +108,13 @@ namespace keys {
         case SDL_BUTTON_MIDDLE: mouse.buttons[MMIDDLE] = press; break;
       }
 
-      have_mouse_motion = 1;
+      have_mouse_motion = true;
     }
 
     void consume_mouse_wheel(int sx, int sy) {
       mouse.sx += sx;
       mouse.sy += sy;
-      have_mouse_motion = 1;
+      have_mouse_motion = true;
     }
 
     KeyState& reset(auto& stream) {
@@ -143,13 +144,15 @@ namespace keys {
           ret[idx] = 0;
       }
 
-      have_keyboard = 0;
+      have_keyboard = false;
       return ret;
     }
 
     mouse_t get_mouse_buffer() {
       mouse_t ret;
 
+      // FIXME: this potentially clips off some of dx, dy, or sy but resets to zero anyways
+      // should probably just split it into multiple commands
       ret[0] = mouse.buttons.to_ulong();
       ret[1] = (char)mouse.dx;
       ret[2] = (char)mouse.dy;
@@ -160,7 +163,7 @@ namespace keys {
 
       mouse.dx = mouse.dy = mouse.sx = mouse.sy = 0;
 
-      have_mouse_button = have_mouse_motion = 0;
+      have_mouse_button = have_mouse_motion = false;
       last_mouse = my_clock::now();
 
       return ret;
@@ -178,13 +181,6 @@ namespace keys {
       if(event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
         consume(event.key.keysym.scancode, event.type == SDL_KEYDOWN);
       }
-
-      // else if(event.type = sdl_mousemotion
-      //           || event.type == sdl_mousebuttondown
-      //           || event.type == sdl_mousebuttonup
-      //           || event.type == sdl_mousewheel) {
-      //   std::cerr << "here\n";
-      // }
 
       if(event.type == SDL_MOUSEMOTION) {
         consume_mouse_motion(event.motion.xrel, event.motion.yrel);
@@ -205,12 +201,6 @@ namespace keys {
       if(force || keyboard_ready()) {
         auto buf = get_keyboard_buffer();
 
-        {
-          fmt::print("kbd: ");
-          for(auto b: buf) fmt::print("{:02X}", b);
-          fmt::print("\n");
-        }
-
         write_trivial<int>(stream, CMD_KEYBOARD);
         write_trivial(stream, buf);
         wrote++;
@@ -218,12 +208,6 @@ namespace keys {
 
       if(force || mouse_ready()) {
         auto buf = get_mouse_buffer();
-
-        {
-          fmt::print("mouse: ");
-          for(auto b: buf) fmt::print("{:02X}", b);
-          fmt::print("\n");
-        }
 
         write_trivial<int>(stream, CMD_MOUSE);
         write_trivial(stream, buf);
