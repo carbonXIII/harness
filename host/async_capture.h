@@ -2,6 +2,7 @@
 
 #include "capture.h"
 
+#include <common/err.h>
 #include <fmt/core.h>
 #include <optional>
 #include <atomic>
@@ -10,8 +11,14 @@
 struct AsyncCapture {
   using BufferHandle = Capture::BufferHandle;
 
-  AsyncCapture(const char* device): device(device) {
-    init();
+  AsyncCapture(AsyncCapture&& o):
+    device((o.join(), o.device)), // make sure we join before we do anything else
+    cap(std::exchange(o.cap, std::nullopt)) {}
+
+  static ErrorOr<AsyncCapture> open(const char* device) {
+    AsyncCapture ret(device);
+    TRY(ret.init());
+    return std::move(ret);
   }
 
   std::optional<BufferHandle> pop_frame() {
@@ -40,6 +47,12 @@ struct AsyncCapture {
     running = false;
   }
 
+  void join() {
+    stop();
+    if(thread.joinable())
+      thread.join();
+  }
+
   ~AsyncCapture() {
     stop();
   }
@@ -55,34 +68,43 @@ protected:
   bool running = false;
   std::jthread thread;
 
-  void init() {
-    cap.emplace(device);
-    cap->start(4);
+  AsyncCapture(const char* device): device(device) {}
+
+  ErrorOr<void> init() {
+    cap.emplace(TRY(Capture::open(device)));
+    TRY(cap->start(4));
+    return {};
   }
 
   void run() {
     while(running) {
-      try {
-        if(!cap) init();
+      auto err = [this]() -> ErrorOr<void> {
+        if(!cap) TRY(init());
 
         while(running) {
           if(!have_frame.load(std::memory_order_acquire)) {
-            auto maybe_frame = cap->read_frame();
-            if(maybe_frame) {
+            auto maybe_frame = TRY(cap->read_frame());
+            if(maybe_frame.has_value()) {
               frame.emplace(std::move(*maybe_frame));
               have_frame.store(1, std::memory_order_release);
             }
           }
         }
-      } catch(const std::system_error& e) {
-        if(e.code() != std::error_code(ENODEV, std::system_category()))
-          throw;
 
-        fmt::print("Capture card connection lost, attempting reconnect.\n");
+        return {};
+      }();
 
-        frame.reset();
-        cap.reset();
-        have_frame.store(0);
+      if(err.is_error()) {
+        if(err.error().code == ENODEV) {
+          fmt::print("Capture card connection lost, attempting reconnect: {}\n", err.error().what());
+
+          frame.reset();
+          cap.reset();
+          have_frame.store(0);
+        } else {
+          fmt::print("In capture thread: {}\n", err.error().what());
+          std::terminate();
+        }
       }
     }
   }

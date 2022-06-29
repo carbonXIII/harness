@@ -1,14 +1,17 @@
 #pragma once
 
-#include <SDL2/SDL_mouse.h>
-#include <SDL2/SDL_render.h>
-#include <SDL2/SDL_video.h>
+#include <common/err.h>
 #include <span>
 #include <utility>
 #include <stdexcept>
 #include <optional>
+#include <variant>
 
 #include <SDL2/SDL.h>
+
+Error sdl_error() {
+  return Error(SDL_GetError());
+}
 
 struct Window {
   struct Texture {
@@ -57,23 +60,32 @@ struct Window {
     Guard guard() { return Guard(this); }
   };
 
-  Window(int width, int height) {
-    static auto _ = []() {
-      int rc = SDL_Init(SDL_INIT_VIDEO);
-      if(rc != 0)
-        throw std::runtime_error(SDL_GetError());
-      return rc;
-    }();
-
-    int rc = SDL_CreateWindowAndRenderer(width, height, SDL_WINDOW_RESIZABLE, &win, &render);
-    if(rc < 0) throw std::runtime_error(SDL_GetError());
-  }
+  Window(SDL_Window* win, SDL_Renderer* render)
+    : win(win), render(render) {}
 
   Window(const Window&) = delete;
+  Window(Window&& o):
+    win(std::exchange(o.win, nullptr)), render(std::exchange(o.render, nullptr)) {}
 
-  Texture create_texture(uint32_t format, int width, int height) {
+  static ErrorOr<Window, Error> create(int width, int height) {
+    SDL_Window* win;
+    SDL_Renderer* render;
+
+    static auto _ = TRY([]() -> ErrorOr<int> {
+      int rc = SDL_Init(SDL_INIT_VIDEO);
+      if(rc != 0) return sdl_error();
+      return rc;
+    }());
+
+    int rc = SDL_CreateWindowAndRenderer(width, height, SDL_WINDOW_RESIZABLE, &win, &render);
+    if(rc < 0) return sdl_error();
+
+    return Window(win, render);
+  }
+
+  ErrorOr<Texture> create_texture(uint32_t format, int width, int height) {
     auto* ret = SDL_CreateTexture(render, format, SDL_TEXTUREACCESS_STREAMING, width, height);
-    if(ret == nullptr) throw std::runtime_error(SDL_GetError());
+    if(ret == nullptr) return sdl_error();
     return Texture(ret, width, height);
   }
 

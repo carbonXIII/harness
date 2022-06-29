@@ -11,26 +11,23 @@
 #include <fmt/core.h>
 #include <bitset>
 
-int main(int argc, char** argv) {
-  if(argc < 3) {
-    fmt::print("USAGE: {} <v4l2 device> <serial device>\n", argv[0]);
-    return 1;
-  }
+ErrorOr<void> go(int argc, char** argv) {
+  if(argc < 3) return Error::format("USAGE: {} <v4l2 device> <serial device>", argv[0]);
 
   keys::KeyState keys;
   asio::io_service service;
   serial_iostream stream(service, argv[2]);
   stream.set_option(asio::serial_port_base::baud_rate(115200));
 
-  AsyncCapture cap(argv[1]);
+  auto cap = TRY(AsyncCapture::open(argv[1]));
 
   int w = cap->get_width(), h = cap->get_height();
   fmt::print("{}x{}\n", w, h);
 
-  Window win(w, h);
+  auto win = TRY(Window::create(w, h));
   win.set_title("Harness");
 
-  auto texture = win.create_texture(SDL_PIXELFORMAT_NV12, w, h);
+  auto texture = TRY(win.create_texture(SDL_PIXELFORMAT_NV12, w, h));
   texture.set_scale_mode(SDL_ScaleModeBest);
 
   cap.start();
@@ -76,6 +73,17 @@ int main(int argc, char** argv) {
     });
 
     keys.dump(stream);
+  }
+
+  return std::nullopt;
+}
+
+int main(int argc, char** argv) {
+  auto ret = go(argc, argv);
+
+  if(ret.is_error()) {
+    fmt::print("{}\n", ret.error().what());
+    return 1;
   }
 
   return 0;
