@@ -34,6 +34,8 @@ ErrorOr<void> go(int argc, char** argv) {
 
   bool running = true;
   while(running) {
+    auto start = SDL_GetPerformanceCounter();
+
     if(auto frame = cap.pop_frame()) {
       {
         auto pixels = texture.guard();
@@ -71,6 +73,10 @@ ErrorOr<void> go(int argc, char** argv) {
         win.set_grab(true);
       }
     });
+
+    auto end = SDL_GetPerformanceCounter();
+    int elapsed_ms = (end - start) * 1000. / SDL_GetPerformanceFrequency();
+    SDL_Delay(std::max(0, int((1000. / 120) - elapsed_ms)));
 
     keys.dump(stream);
   }

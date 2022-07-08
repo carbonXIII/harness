@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_video.h>
 #include <common/err.h>
 #include <span>
 #include <utility>
@@ -77,8 +79,11 @@ struct Window {
       return rc;
     }());
 
-    int rc = SDL_CreateWindowAndRenderer(width, height, SDL_WINDOW_RESIZABLE, &win, &render);
-    if(rc < 0) return sdl_error();
+    win = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_RESIZABLE);
+    if(!win) return sdl_error();
+
+    render = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    if(!render) return sdl_error();
 
     return Window(win, render);
   }
