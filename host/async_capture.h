@@ -2,11 +2,21 @@
 
 #include "capture.h"
 
+#include <asm-generic/errno-base.h>
 #include <common/err.h>
 #include <fmt/core.h>
 #include <optional>
 #include <atomic>
 #include <thread>
+
+template <typename T, int N>
+struct const_set: std::array<T, N> {
+  constexpr bool count(const T& v) const {
+    return [this, v]<size_t... I>(std::index_sequence<I...>) {
+      return ((this->at(I) == v) + ...);
+    }(std::make_index_sequence<N>{});
+  }
+};
 
 struct AsyncCapture {
   using BufferHandle = Capture::BufferHandle;
@@ -95,12 +105,15 @@ protected:
       }();
 
       if(err.is_error()) {
-        if(err.error().code == ENODEV) {
+        static constexpr const_set<int, 4> allowed_errors = { ENODEV, ENOENT, EACCES, EBADF };
+        if(allowed_errors.count(err.error().code)) {
           fmt::print("Capture card connection lost, attempting reconnect: {}\n", err.error().what());
 
           frame.reset();
           cap.reset();
           have_frame.store(0);
+
+          std::this_thread::sleep_for(std::chrono::seconds(1));
         } else {
           fmt::print("In capture thread: {}\n", err.error().what());
           std::terminate();

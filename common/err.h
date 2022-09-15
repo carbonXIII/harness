@@ -84,5 +84,5 @@ struct [[nodiscard]] ErrorOr<T&, ErrorT>: ErrorOr<std::reference_wrapper<T>, Err
   using ErrorOr<std::reference_wrapper<T>, ErrorT>::ErrorOr;
 };
 
-#define TRY(x) ({ auto ____ret = (x); if(____ret.is_error()) return x.error(); ____ret.release_value(); })
-#define IGNORE(x) ({ (x).release_value(); })
+#define TRY(x) ({ auto ____ret = (x); if(____ret.is_error()) return ____ret.error(); ____ret.release_value(); })
+#define IGNORE(x) (void) x

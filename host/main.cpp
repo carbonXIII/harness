@@ -8,8 +8,31 @@
 #include <asio.hpp>
 
 #include <iostream>
+#include <thread>
 #include <fmt/core.h>
 #include <bitset>
+
+ErrorOr<AsyncCapture> open_capture_with_timeout(const char* path, std::chrono::system_clock::duration timeout) {
+  std::optional<AsyncCapture> cap;
+  std::optional<Error> last_err;
+
+  auto start = std::chrono::system_clock::now();
+  while(!cap && std::chrono::system_clock::now() - start < timeout) {
+    auto res = AsyncCapture::open(path);
+
+    if(res.is_error()) {
+      fmt::print("Failed to open capture device: {}\n", res.error().what());
+      std::this_thread::sleep_for(std::chrono::seconds(2));
+
+      last_err = res.error();
+    } else {
+      cap.emplace(res.release_value());
+    }
+  }
+
+  if(!cap) return Error::format("Timed out while opening capture: {}\n", last_err->what());
+  return std::move(cap.value());
+}
 
 ErrorOr<void> go(int argc, char** argv) {
   if(argc < 3) return Error::format("USAGE: {} <v4l2 device> <serial device>", argv[0]);
@@ -19,7 +42,7 @@ ErrorOr<void> go(int argc, char** argv) {
   serial_iostream stream(service, argv[2]);
   stream.set_option(asio::serial_port_base::baud_rate(115200));
 
-  auto cap = TRY(AsyncCapture::open(argv[1]));
+  auto cap = TRY(open_capture_with_timeout(argv[1], std::chrono::seconds(30)));
 
   int w = cap->get_width(), h = cap->get_height();
   fmt::print("{}x{}\n", w, h);
