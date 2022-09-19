@@ -10,7 +10,7 @@ enum : int{
 };
 
 typedef std::array<uint8_t, 8> keyboard_t;
-typedef std::array<uint8_t, 4> mouse_t;
+typedef std::array<uint8_t, 6> mouse_t;
 
 template <typename T, typename stream>
 T read_trivial(stream& s) {

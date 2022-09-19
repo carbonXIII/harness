@@ -3,7 +3,7 @@
 include(ExternalProject)
 
 function(add_subdirectory_for_toolchain dir toolchainTuple)
-  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${toolchainTuple})
+  if(${CMAKE_SYSTEM_PROCESSOR} MATCHES ${toolchainTuple})
     add_subdirectory(${dir})
   endif()
 endfunction()

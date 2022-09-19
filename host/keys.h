@@ -62,8 +62,8 @@ namespace keys {
     std::set<SDL_Scancode> keys;
 
     struct MouseState {
-      int dx = 0;
-      int dy = 0;
+      int x = 0;
+      int y = 0;
       int sx = 0;
       int sy = 0;
       std::bitset<8> buttons {};
@@ -94,10 +94,10 @@ namespace keys {
       have_keyboard = true;
     }
 
-    void consume_mouse_motion(int dx, int dy) {
-      mouse.dx += dx;
-      mouse.dy += dy;
-      have_mouse_button = true;
+    void consume_mouse_motion(int x, int y, int w, int h) {
+      mouse.x = std::clamp((x * 32767) / w, 0, 32767);
+      mouse.y = std::clamp((y * 32767) / h, 0, 32767);
+      have_mouse_motion = true;
     }
 
     void consume_mouse_button(int code, bool press) {
@@ -108,7 +108,7 @@ namespace keys {
         case SDL_BUTTON_MIDDLE: mouse.buttons[MMIDDLE] = press; break;
       }
 
-      have_mouse_motion = true;
+      have_mouse_button = true;
     }
 
     void consume_mouse_wheel(int sx, int sy) {
@@ -154,14 +154,14 @@ namespace keys {
       // FIXME: this potentially clips off some of dx, dy, or sy but resets to zero anyways
       // should probably just split it into multiple commands
       ret[0] = mouse.buttons.to_ulong();
-      ret[1] = (char)mouse.dx;
-      ret[2] = (char)mouse.dy;
-      ret[3] = (char)mouse.sy;
+      *reinterpret_cast<int16_t*>(&ret[1]) = (int16_t)mouse.x;
+      *reinterpret_cast<int16_t*>(&ret[3]) = (int16_t)mouse.y;
+      ret[5] = (char)mouse.sy;
 
       // FIXME: no horizontal scroll for now
-      // ret[4] = (char)mouse.sx;
+      // ret[6] = (char)mouse.sx;
 
-      mouse.dx = mouse.dy = mouse.sx = mouse.sy = 0;
+      mouse.sx = mouse.sy = 0;
 
       have_mouse_button = have_mouse_motion = false;
       last_mouse = my_clock::now();
@@ -177,13 +177,13 @@ namespace keys {
       return have_mouse_button || (have_mouse_motion && my_clock::now() - last_mouse > frame_time);
     }
 
-    void consume_event(const SDL_Event& event) {
+    void consume_event(const SDL_Event& event, int w, int h) {
       if(event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
         consume(event.key.keysym.scancode, event.type == SDL_KEYDOWN);
       }
 
       if(event.type == SDL_MOUSEMOTION) {
-        consume_mouse_motion(event.motion.xrel, event.motion.yrel);
+        consume_mouse_motion(event.motion.x, event.motion.y, w, h);
       }
 
       else if(event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {

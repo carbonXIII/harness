@@ -9,6 +9,8 @@ add_subdirectory(external/fmt)
 include(cmake/AddMultiTargetComponent.cmake)
 
 add_subdirectory_for_toolchain(host "x86_64")
-add_subdirectory_for_toolchain(pi "armv6l")
+add_subdirectory_for_toolchain(image "x86_64")
+
+add_subdirectory_for_toolchain(pi "arm")
 
 # trigger_toolchain_build("rpi" "x86_64")

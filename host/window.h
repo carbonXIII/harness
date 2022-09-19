@@ -121,6 +121,12 @@ struct Window {
     SDL_SetRelativeMouseMode(grab ? SDL_TRUE : SDL_FALSE);
   }
 
+  bool is_focused() {
+    auto state = SDL_GetWindowFlags(win);
+    static constexpr auto mask = SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_MOUSE_FOCUS;
+    return (state & mask) == mask;
+  }
+
   void set_title(const std::string& s) {
     SDL_SetWindowTitle(win, s.c_str());
   }

@@ -1,0 +1,1 @@
+console=tty1 root=PARTUUID=uuid-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait quiet init=/usr/lib/raspi-config/init_resize.sh modules-load=dwc2,libcomposite

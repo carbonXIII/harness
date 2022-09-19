@@ -56,8 +56,14 @@ ErrorOr<void> go(int argc, char** argv) {
   cap.start();
 
   bool running = true;
+
+  int scaled_w, scaled_h;
+  std::tie(scaled_w, scaled_h) = win.get_dims();
+
   while(running) {
     auto start = SDL_GetPerformanceCounter();
+
+    auto [win_w, win_h] = win.get_dims();
 
     if(auto frame = cap.pop_frame()) {
       {
@@ -66,42 +72,26 @@ ErrorOr<void> go(int argc, char** argv) {
         frame.reset();
       }
 
-      auto [win_w, win_h] = win.get_dims();
       auto scale = std::min(double(win_w) / w, double(win_h) / h);
 
+      scaled_w = w * scale;
+      scaled_h = h * scale;
+
       win.render_clear();
-      win.render_copy(texture, SDL_Rect{0, 0, int(scale * w), int(scale * h)});
+      win.render_copy(texture, SDL_Rect{0, 0, scaled_w, scaled_h});
       win.render_present();
     }
 
     win.process_events([&](const SDL_Event& e) {
-      if(e.type == SDL_QUIT) {
-        running = false;
-      }
-
-      if(keys::OnPress(e, keys::kbd_button{SDL_SCANCODE_LCTRL}, keys::kbd_button{SDL_SCANCODE_RCTRL})
-         && win.is_grabbed()) {
-        fmt::print("mouse unlock\n");
-        keys.reset(stream);
-        win.set_grab(false);
-      }
-
-      if(win.is_grabbed())
-        keys.consume_event(e);
-
-      if(keys::OnPress(e, keys::mouse_button{SDL_BUTTON_LEFT})
-         && !win.is_grabbed()) {
-        fmt::print("mouse lock\n");
-        keys.reset(stream);
-        win.set_grab(true);
-      }
+      if(e.type == SDL_QUIT) running = false;
+      keys.consume_event(e, scaled_w, scaled_h);
     });
+
+    keys.dump(stream);
 
     auto end = SDL_GetPerformanceCounter();
     int elapsed_ms = (end - start) * 1000. / SDL_GetPerformanceFrequency();
     SDL_Delay(std::max(0, int((1000. / 120) - elapsed_ms)));
-
-    keys.dump(stream);
   }
 
   return std::nullopt;
